@@ -1,0 +1,250 @@
+<!--
+	
+	
+	@Patrik Dragan
+	
+	
+-->
+
+<!-- Input Node -->
+<script type="text/html" data-template-name="someip in">
+    <div class="form-row">
+        <label for="node-input-port"><i class="fa fa-sign-in"></i> <span>Listen for</span></label>
+        <select id="node-input-multicast" style='width:70%'>
+          <option value="false">someip messages</option>
+          <option value="true">multicast messages</option>
+        </select>
+    </div>
+    <div class="form-row node-input-group">
+        <label for="node-input-group"><i class="fa fa-list"></i> <span>Group</span></label>
+        <input type="text" id="node-input-group" placeholder="225.0.18.83">
+    </div>
+    <div class="form-row node-input-iface">
+        <label for="node-input-iface"><i class="fa fa-random"></i> <span>Local IF</span></label>
+        <input type="text" id="node-input-iface" placeholder="(optional) local interface or address to bind to">
+    </div>
+    <div class="form-row">
+        <label for="node-input-port"><i class="fa fa-sign-in"></i> <span>on Port</span></label>
+        <input type="text" id="node-input-port" style="width:80px">
+        &nbsp;&nbsp;<span>using</span> <select id="node-input-ipv" style="width:80px">
+          <option value="udp4">ipv4</option>
+          <option value="udp6">ipv6</option>
+        </select>
+    </div>
+    <div class="form-row">
+        <label for="node-input-datatype"><i class="fa fa-sign-out"></i> <span>Output</span></label>
+        <select id="node-input-datatype" style="width:70%;">
+            <option value="buffer">Buffer</option>
+            <option value="utf8">String</option>
+            <option value="base64">Base64 encoded string</option>
+        </select>
+    </div>
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> <span>Name</span></label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-tips"><span>Tip: Make sure your firewall will allow the data in.</span></div>
+    <div class="form-tips" id="someipporttip"><span>Ports already in use: </span></div>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType('someip in',{
+        category: 'network',
+        color:"Silver",
+        defaults: {
+            name: {value:""},
+            iface: {value:""},
+            port: {value:"",required:true,validate:RED.validators.number()},
+            ipv: {value:"udp4"},
+            multicast: {value:"false"},
+            group: {value:"",validate:function(v) { return (this.multicast !== "true")||v.length > 0;} },
+            datatype: {value:"buffer",required:true}
+        },
+        inputs:0,
+        outputs:1,
+        icon: "bridge-dash.svg",
+        label: function() {
+            if (this.multicast=="false") {
+                return this.name||"someip "+this.port;
+            }
+            else {
+                return this.name||"someip "+(this.group+":"+this.port);
+            }
+        },
+        labelStyle: function() {
+            return this.name?"node_label_italic":"";
+        },
+        oneditprepare: function() {
+            $("#node-input-multicast").on("change", function() {
+                var id = $("#node-input-multicast").val();
+                if (id == "false") {
+                    $(".node-input-group").hide();
+                    $(".node-input-iface").hide();
+                }
+                else {
+                    $(".node-input-group").show();
+                    $(".node-input-iface").show();
+                }
+            });
+            $("#node-input-multicast").change();
+
+            var porttip = this._("Ports already in use: ");
+            var alreadyused = this._("someip: port __port__ already in use");
+            var portsInUse = {};
+            $.getJSON('someip-ports/'+this.id,function(data) {
+                portsInUse = data || {};
+                $('#someipporttip').html(porttip + data);
+            });
+            $("#node-input-port").on("change", function() {
+                var portnew = $("#node-input-port").val();
+                if (portsInUse.hasOwnProperty($("#node-input-port").val())) {
+                    RED.notify(alreadyused+" "+$("#node-input-port").val(),"warn");
+                }
+            });
+        }
+    });
+</script>
+
+<script type="text/html" data-help-name="someip in">
+    <p>A someip input node, that produces a <code>msg.payload</code> containing a
+    Buffer, string, or base64 encoded string. Supports multicast.</p>
+    <p>It also provides <code>msg.ip</code> and <code>msg.port</code> set to the
+    ip address and port from which the message was received.</p>
+    <p><b>Note</b>: On some systems you may need root or administrator access to use
+    ports below 1024 and/or broadcast.</p>
+</script>
+
+
+<!-- Output Node -->
+<script type="text/html" data-template-name="someip out">
+    <div class="form-row">
+        <label for="node-input-port"><i class="fa fa-envelope"></i> <span>Send a</span></label>
+        <select id="node-input-multicast" style="width:40%">
+          <option value="false">someip message</option>
+          <option value="broad">broadcast message</option>
+          <option value="multi">multicast message</option>
+        </select>
+        <span>to port</span> <input type="text" id="node-input-port" style="width:70px">
+    </div>
+    <div class="form-row">
+        <label for="node-input-messageid"><i class="fa fa-tag"></i> <span>MessageID</span></label>
+        <input type="text" id="node-input-messageid" placeholder="MessageID(ServiceID/ MethodID)">
+    </div>
+	<div class="form-row">
+        <label for="node-input-requestid"><i class="fa fa-tag"></i> <span>RequestID</span></label>
+        <input type="text" id="node-input-requestid" placeholder="RequestID(ClientID/ SessionID)">
+    </div>
+    <div class="form-row node-input-addr">
+        <label for="node-input-addr" id="node-input-addr-label"><i class="fa fa-list"></i> <span>Address</span></label>
+        <input type="text" id="node-input-addr" placeholder="Destination IP" style="width:50%;">
+        <select id="node-input-ipv" style="width:70px">
+          <option value="someip4">ipv4</option>
+          <option value="someip6">ipv6</option>
+        </select>
+    </div>
+    <div class="form-row node-input-iface">
+        <label for="node-input-iface"><i class="fa fa-random"></i> <span>Local IF</span></label>
+        <input type="text" id="node-input-iface" placeholder="(optional) local interface or address to bind to">
+    </div>
+    <div class="form-row">
+        <label for="node-input-outport-type">&nbsp;</label>
+        <select id="node-input-outport-type">
+          <option id="node-input-outport-type-random" value="random">bind to a random local port</option>
+          <option value="fixed">bind to a local port</option>
+        </select>
+        <input type="text" id="node-input-outport" style="width:70px;">
+    </div>
+    <div class="form-row">
+        <label>&nbsp;</label>
+        <input type="checkbox" id="node-input-base64" style="display:inline-block; width:auto; vertical-align:top;">
+        <label for="node-input-base64" style="width:70%;"><span>Decode Base64 encoded payload?</span></label>
+    </div>
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> <span>Name</span></label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-tips"><span>Tip: leave address and port blank if you want to set using <code>msg.ip</code> and <code>msg.port</code>."</span></div>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType('someip out',{
+        category: 'network',
+        color:"Silver",
+        defaults: {
+            name: {value:""},
+			messageid: {value:""},
+			requestid: {value:""},
+            addr: {value:""},
+            iface: {value:""},
+            port: {value:""},
+            ipv: {value:"udp4"},
+            outport: {value:""},
+            base64: {value:false,required:true},
+            multicast: {value:"false"}
+        },
+        inputs:1,
+        outputs:0,
+        icon: "bridge-dash.svg",
+        align: "right",
+        label: function() {
+            return this.name||"someip "+(this.addr+":"+this.port);
+        },
+        labelStyle: function() {
+            return this.name?"node_label_italic":"";
+        },
+        oneditprepare: function() {
+            var addresslabel = this._("Address");
+            var addressph = this._("destination ip");
+            var grouplabel = this._("Group");
+            var bindrandom = this._("bind to random local port");
+            var bindtarget = this._("bind to target port");
+
+            var type = this.outport===""?"random":"fixed";
+            $("#node-input-outport-type").val(type);
+
+            $("#node-input-outport-type").on("change", function() {
+                var type = $(this).val();
+                if (type == "random") {
+                    $("#node-input-outport").val("").hide();
+                } else {
+                    $("#node-input-outport").show();
+                }
+            });
+            $("#node-input-outport-type").change();
+
+            $("#node-input-multicast").on("change", function() {
+                var id = $("#node-input-multicast").val();
+                if (id === "multi") {
+                    $(".node-input-iface").show();
+                    $("#node-input-addr-label").html('<i class="fa fa-list"></i> ' + grouplabel);
+                    $("#node-input-addr")[0].placeholder = '225.0.18.83';
+                }
+                else if (id === "broad") {
+                    $(".node-input-iface").hide();
+                    $("#node-input-addr-label").html('<i class="fa fa-list"></i> ' + addresslabel);
+                    $("#node-input-addr")[0].placeholder = '255.255.255.255';
+                }
+                else {
+                    $(".node-input-iface").hide();
+                    $("#node-input-addr-label").html('<i class="fa fa-list"></i> ' + addresslabel);
+                    $("#node-input-addr")[0].placeholder = addressph;
+                }
+                var type = $(this).val();
+                if (type == "false") {
+                    $("#node-input-outport-type-random").html(bindrandom);
+                } else {
+                    $("#node-input-outport-type-random").html(bindtarget);
+                }
+            });
+            $("#node-input-multicast").change();
+        }
+    });
+</script>
+
+
+<script type="text/html" data-help-name="someip out">
+    <p>This node sends <code>msg.payload</code> to the designated someip host and port. Supports multicast.</p>
+    <p>You may also use <code>msg.ip</code> and <code>msg.port</code> to set the destination values, but the statically configured values have precedence.</p>
+    <p>If you select broadcast either set the address to the local broadcast ip address, or maybe try 255.255.255.255, which is the global broadcast address.</p>
+    <p><b>Note</b>: On some systems you may need to be root to use ports below 1024 and/or broadcast.</p>
+</script>

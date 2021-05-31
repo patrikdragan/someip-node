@@ -17,11 +17,7 @@
     </div>
     <div class="form-row node-input-group">
         <label for="node-input-group"><i class="fa fa-list"></i> <span>Group</span></label>
-        <input type="text" id="node-input-group" placeholder="225.0.18.83">
-    </div>
-    <div class="form-row node-input-iface">
-        <label for="node-input-iface"><i class="fa fa-random"></i> <span>Local IF</span></label>
-        <input type="text" id="node-input-iface" placeholder="(optional) local interface or address to bind to">
+        <input type="text" id="node-input-group" placeholder="225.225.225.225">
     </div>
     <div class="form-row">
         <label for="node-input-port"><i class="fa fa-sign-in"></i> <span>on Port</span></label>
@@ -43,7 +39,7 @@
         <label for="node-input-name"><i class="fa fa-tag"></i> <span>Name</span></label>
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
-    <div class="form-tips"><span>Tip: Make sure your firewall will allow the data in.</span></div>
+    <div class="form-tips"><span>Make sure your firewall will allow the data in and out.</span></div>
     <div class="form-tips" id="someipporttip"><span>Ports already in use: </span></div>
 </script>
 
@@ -53,7 +49,6 @@
         color:"Silver",
         defaults: {
             name: {value:""},
-            iface: {value:""},
             port: {value:"",required:true,validate:RED.validators.number()},
             ipv: {value:"udp4"},
             multicast: {value:"false"},
@@ -79,11 +74,9 @@
                 var id = $("#node-input-multicast").val();
                 if (id == "false") {
                     $(".node-input-group").hide();
-                    $(".node-input-iface").hide();
                 }
                 else {
                     $(".node-input-group").show();
-                    $(".node-input-iface").show();
                 }
             });
             $("#node-input-multicast").change();
@@ -107,7 +100,7 @@
 
 <script type="text/html" data-help-name="someip in">
     <p>A someip input node, that produces a <code>msg.payload</code> containing a
-    Buffer, string, or base64 encoded string. Supports multicast.</p>
+    Buffer, String, or Base64 encoded string</p>
     <p>It also provides <code>msg.ip</code> and <code>msg.port</code> set to the
     ip address and port from which the message was received.</p>
     <p><b>Note</b>: On some systems you may need root or administrator access to use
@@ -142,10 +135,6 @@
           <option value="someip6">ipv6</option>
         </select>
     </div>
-    <div class="form-row node-input-iface">
-        <label for="node-input-iface"><i class="fa fa-random"></i> <span>Local IF</span></label>
-        <input type="text" id="node-input-iface" placeholder="(optional) local interface or address to bind to">
-    </div>
     <div class="form-row">
         <label for="node-input-outport-type">&nbsp;</label>
         <select id="node-input-outport-type">
@@ -163,7 +152,7 @@
         <label for="node-input-name"><i class="fa fa-tag"></i> <span>Name</span></label>
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
-    <div class="form-tips"><span>Tip: leave address and port blank if you want to set using <code>msg.ip</code> and <code>msg.port</code>."</span></div>
+    <div class="form-tips"><span>Leave address and port blank if you want to set using <code>msg.ip</code> and <code>msg.port</code>."</span></div>
 </script>
 
 <script type="text/javascript">
@@ -175,7 +164,6 @@
 			messageid: {value:""},
 			requestid: {value:""},
             addr: {value:""},
-            iface: {value:""},
             port: {value:""},
             ipv: {value:"udp4"},
             outport: {value:""},
@@ -215,17 +203,14 @@
             $("#node-input-multicast").on("change", function() {
                 var id = $("#node-input-multicast").val();
                 if (id === "multi") {
-                    $(".node-input-iface").show();
                     $("#node-input-addr-label").html('<i class="fa fa-list"></i> ' + grouplabel);
                     $("#node-input-addr")[0].placeholder = '225.0.18.83';
                 }
                 else if (id === "broad") {
-                    $(".node-input-iface").hide();
                     $("#node-input-addr-label").html('<i class="fa fa-list"></i> ' + addresslabel);
                     $("#node-input-addr")[0].placeholder = '255.255.255.255';
                 }
                 else {
-                    $(".node-input-iface").hide();
                     $("#node-input-addr-label").html('<i class="fa fa-list"></i> ' + addresslabel);
                     $("#node-input-addr")[0].placeholder = addressph;
                 }
@@ -243,8 +228,9 @@
 
 
 <script type="text/html" data-help-name="someip out">
-    <p>This node sends <code>msg.payload</code> to the designated someip host and port. Supports multicast.</p>
-    <p>You may also use <code>msg.ip</code> and <code>msg.port</code> to set the destination values, but the statically configured values have precedence.</p>
+    <p>This node sends <code>msg.payload</code> to the designated someip host and port. Supports multicast and broadcast.</p>
+    <p>You may also use <code>msg.ip</code> and <code>msg.port</code> to set the destination values.</p>
+	<p>If you select multicast set the group ip address of the destination.</p>
     <p>If you select broadcast either set the address to the local broadcast ip address, or maybe try 255.255.255.255, which is the global broadcast address.</p>
     <p><b>Note</b>: On some systems you may need to be root to use ports below 1024 and/or broadcast.</p>
 </script>

@@ -1,11 +1,6 @@
-/**
-*
-*
-*	@Patrik Dragan
-*
-*
-*
-**/
+
+//	@Patrik Dragan
+
 
 module.exports = function(RED) {
     "use strict";
@@ -19,8 +14,9 @@ module.exports = function(RED) {
         RED.nodes.createNode(this,n);
         this.group = n.group;
         this.port = n.port;
+		// this.messageid = n.messageid;
         this.datatype = n.datatype;
-        this.iface = n.iface || null;
+        this.iface = null;
         this.multicast = n.multicast;
         this.ipv = n.ipv || "udp4";
         var node = this;
@@ -53,16 +49,15 @@ module.exports = function(RED) {
 		} else {
 			var opts = {type:'udp6', reuseAddr:true};
 		}
-        if (process.version.indexOf("v0.10") === 0) { opts = node.ipv; }
         var server;
         if (!someipInputPortsInUse.hasOwnProperty(node.port)) {
-            server = dgram.createSocket(opts);  // default to udp4 socker
+            server = dgram.createSocket(opts);
             server.bind(node.port, function() {
                 if (node.multicast == "true") {
                     server.setBroadcast(true);
                     server.setMulticastLoopback(false);
                     try {
-                        server.setMulticastTTL(128);
+                        server.setMulticastTTL(255);
                         server.addMembership(node.group,node.iface);
                         if (node.iface) { node.status({text:n.iface+" : "+node.iface}); }
                         node.log(RED._("someip multicast group __group__",{group:node.group}));
@@ -96,19 +91,28 @@ module.exports = function(RED) {
 
         server.on('message', function (message, remote) {
             var msg;
+			var protV = 0;
+			var interfV = 1;
+			var msgType = 2;
+			var rtnCode = 0;
+			var mid = parseInt(message.toString('utf8',0,4));
+			var reqid = parseInt(message.toString('utf8',9,12));
+			var leng = parseInt(message.toString('utf8',4,8));
+			var data_leng = parseInt(message.toString('utf8',4,8));
+			var da = { value:message.toString('utf8',16,16+data_leng) };
+			var someipCod = { protocol_version:protV, interface_version:interfV, message_type:msgType, return_code:rtnCode };
             if (node.datatype =="base64") {
                 msg = { payload:message.toString('base64'), fromip:remote.address+':'+remote.port, ip:remote.address, port:remote.port };
             } else if (node.datatype =="utf8") {
-                msg = { payload:message.toString('utf8'), fromip:remote.address+':'+remote.port, ip:remote.address, port:remote.port };
+                msg = { payload:message.toString('utf8'), messageid:mid, data_length:leng, requestid:reqid, someip_specific_attributes:someipCod, data_payload:da, fromip:remote.address+':'+remote.port, ip:remote.address, port:remote.port };
             } else {
-                msg = { payload:message, fromip:remote.address+':'+remote.port, ip:remote.address, port:remote.port };
+                msg = { payload:message, messageid:mid, data_length:data_leng, requestid:reqid, someip_specific_attributes:someipCod, data_payload:da, fromip:remote.address+':'+remote.port, ip:remote.address, port:remote.port };
             }
             node.send(msg);
         });
 
         server.on('listening', function () {
             var address = server.address();
-			// node.log(RED._("someip listener at"));
             node.log(RED._("someip listener at __host__:__port__",{host:node.iface||address.address,port:address.port}));
         });
 
@@ -118,7 +122,6 @@ module.exports = function(RED) {
                 server.close();
                 node.log(RED._("someip listener stopped"));
             } catch (err) {
-                //node.error(err);
 				node.error(RED._("error: __error__",{error:e.errno}));
             }
             if (someipInputPortsInUse.hasOwnProperty(node.port)) {
@@ -138,14 +141,8 @@ module.exports = function(RED) {
     // The Output Node
     function someipout(n) {
         RED.nodes.createNode(this,n);
-        //this.group = n.group;
 		this.messageid = n.messageid;
-		//this.length = n.length;
 		this.requestid = n.requestid;
-		//this.protV = n.protV;
-		//this.interfV = n.interfV;
-		//this.msgType = n.msgType;
-		//this.rtnCode = n.rtnCode;
         this.port = n.port;
         this.outport = n.outport||"";
         this.base64 = n.base64;
@@ -196,15 +193,15 @@ module.exports = function(RED) {
                 if (node.iface) { node.status({text:n.iface+" : "+node.iface}); }
             }
             else {
-                sock = dgram.createSocket(opts);  // default to someip4
+                sock = dgram.createSocket(opts);
                 if (node.multicast != "false") {
-                    sock.bind(node.outport, function() {    // have to bind before you can enable broadcast...
-                        sock.setBroadcast(true);            // turn on broadcast
-                        sock.setMulticastLoopback(false);   // turn off loopback
+                    sock.bind(node.outport, function() {    
+                        sock.setBroadcast(true);            
+                        sock.setMulticastLoopback(false);   
                         if (node.multicast == "multi") {
                             try {
-                                sock.setMulticastTTL(128);
-                                sock.addMembership(node.addr,node.iface);   // Add to the multicast group
+                                sock.setMulticastTTL(255);
+                                sock.addMembership(node.addr,node.iface);  
                                 if (node.iface) { node.status({text:n.iface+" : "+node.iface}); }
                                 node.log(RED._("someip multicast ready: __iface__:__outport__ -> __host__:__port__",{iface:node.iface,outport:node.outport,host:node.addr,port:node.port}));
                             } catch (e) {
@@ -227,10 +224,7 @@ module.exports = function(RED) {
                     node.log(RED._("someip ready: __host__:__port__",{host:node.addr,port:node.port}));
                 }
                 sock.on("error", function(err) {
-                    // Any async error will also get reported in the sock.send call.
-                    // This handler is needed to ensure the error marked as handled to
-                    // prevent it going to the global error handler and shutting node-red
-                    // down.
+					node.error(RED._("error: __error__",{error:e.errno}));
                 });
                 someipInputPortsInUse[p] = sock;
             }
@@ -239,18 +233,53 @@ module.exports = function(RED) {
                 if (msg.hasOwnProperty("payload")) {
                     var add = node.addr || msg.ip || "";
                     var por = node.port || msg.port || 0;
-					var messageid = node.messageid || "0";
-					var requestid = node.requestid || "0";
+					var mid
+					if(node.messageid.length == 1){
+						mid = "000" + node.messageid;
+					}
+					else if(node.messageid.length == 2) {
+						mid = "00" + node.messageid;
+					}
+					else if(node.messageid.length == 3) {
+						mid = "0" + node.messageid;
+					}
+					else if(node.messageid.length == 4) {
+						mid = node.messageid;
+					}
+					else {
+						node.warn(RED._("someip: messageid not set"));
+                        nodeDone();
+					}
+					var requestid;
+					if(node.requestid.length == 1) {
+						requestid = "000" + node.requestid;
+					}
+					else if(node.requestid.length == 2) {
+						requestid = "00" + node.requestid;
+					}
+					else if(node.requestid.length == 3) {
+						requestid = "0" + node.requestid;
+					}
+					else if(node.requestid.length == 4) {
+						requestid = node.requestid;
+					}
+					else {
+						node.warn(RED._("someip: requestid not set"));
+                        nodeDone();
+					}
                     if (add === "") {
                         node.warn(RED._("someip: ip address not set"));
                         nodeDone();
-                    } else if (por === 0) {
+                    } 
+					else if (por === 0) {
                         node.warn(RED._("someip: port not set"));
                         nodeDone();
-                    } else if (isNaN(por) || (por < 1) || (por > 65535)) {
+                    } 
+					else if (isNaN(por) || (por < 1) || (por > 65535)) {
                         node.warn(RED._("someip: port number not valid"));
                         nodeDone();
-                    } else {
+                    } 
+					else {
                         var message;
 						var tmp;
 						var length;
@@ -261,15 +290,67 @@ module.exports = function(RED) {
                         if (node.base64) {
                             tmp = Buffer.from(msg.payload, 'base64');
 							length = tmp.length;
-							message = messageid + length + requestid + protV + interfV + msgType + rtnCode + tmp;
-                        } else if (msg.payload instanceof Buffer) {
+							if(length.length == 1) {
+								length = "000" + length;
+							}
+							else if(length.length == 2) {
+								length = "00" + length;
+							}
+							else if(length.length == 3) {
+								length = "0" + length;
+							}
+							else if(length.length == 4) {
+								length = length;
+							}
+							else {
+								node.warn(RED._("someip: data length not permitted"));
+								nodeDone();
+							}
+							message = mid + length + requestid + protV + interfV + msgType + rtnCode + tmp;
+                        } 
+						else if (msg.payload instanceof Buffer) {
                             tmp = msg.payload;
 							length = tmp.length;
-							message = messageid + length + requestid + protV + interfV + msgType + rtnCode + tmp;
-                        } else {
+							length = tmp.length;
+							if(length.length == 1) {
+								length = "000" + length;
+							}
+							else if(length.length == 2) {
+								length = "00" + length;
+							}
+							else if(length.length == 3) {
+								length = "0" + length;
+							}
+							else if(length.length == 4) {
+								length = node.requestid;
+							}
+							else {
+								node.warn(RED._("someip: data length not permitted"));
+								nodeDone();
+							}
+							message = mid + length + requestid + protV + interfV + msgType + rtnCode + tmp;
+                        } 
+						else {
                             tmp = Buffer.from(""+msg.payload);
 							length = tmp.length;
-							message = messageid + length + requestid + protV + interfV + msgType + rtnCode + tmp;
+							length = length.toString();
+							if(length.length == 1){
+								length = "000" + length;
+							}
+							else if(length.length == 2) {
+								length = "00" + length;
+							}
+							else if(length.length == 3) {
+								length = "0" + length;
+							}
+							else if(length.length == 4) {
+								length = length;
+							}
+							else {
+								node.warn(RED._("someip: data length not permitted"));
+								nodeDone();
+							}
+							message = mid + length + requestid + protV + interfV + msgType + rtnCode + tmp;
                         }
                         sock.send(message, 0, message.length, por, add, function(err, bytes) {
                             if (err) {
@@ -290,7 +371,6 @@ module.exports = function(RED) {
                 sock.close();
                 node.log(RED._("someip output stopped"));
             } catch (err) {
-                //node.error(err);
 				node.error(RED._("error: __error__",{error:e.errno}));
             }
             if (someipInputPortsInUse.hasOwnProperty(p)) {
